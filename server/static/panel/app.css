@@ -1,0 +1,125 @@
+:root {
+  color-scheme: dark;
+  --bg: #101418;
+  --card: #1b232b;
+  --line: #2c3844;
+  --text: #f2f5f7;
+  --muted: #93a0ac;
+  --accent: #3ddc84;
+  --danger: #ff6b6b;
+  --warn: #e6b35a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(1200px 500px at 50% -10%, #1c3a2c 0%, var(--bg) 55%);
+  color: var(--text);
+  font: 16px/1.45 "Segoe UI", sans-serif;
+}
+
+.shell {
+  width: min(880px, calc(100% - 32px));
+  margin: 40px auto 64px;
+}
+
+.card, .model {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1, h2 { margin: 0 0 8px; font-weight: 650; }
+h1 { font-size: 32px; }
+h2 { font-size: 18px; }
+
+.muted { color: var(--muted); margin: 0 0 18px; }
+.muted.small { font-size: 12px; margin: -4px 0 4px; line-height: 1.5; }
+code { background: rgba(255, 255, 255, 0.07); border-radius: 4px; padding: 1px 5px; }
+
+form { display: grid; gap: 12px; }
+
+label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+
+input, textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #12181e;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check input { width: auto; }
+
+button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: var(--accent);
+  color: #072113;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.ghost, button.warn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+button.warn { color: var(--warn); }
+
+.error { color: var(--danger); margin: 0; }
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 18px;
+}
+
+.list { display: grid; gap: 12px; margin-top: 16px; }
+
+.model {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px 18px;
+  align-items: center;
+}
+
+.model h3 { margin: 0 0 4px; }
+.model p { margin: 0; color: var(--muted); }
+
+.badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.badge.on { background: #143524; color: var(--accent); }
+.badge.off { background: #2a2418; color: var(--warn); }
+
+.empty { color: var(--muted); padding: 8px 2px; }

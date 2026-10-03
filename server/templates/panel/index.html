@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CR — модели</title>
+  <link rel="stylesheet" href="/static/panel/app.css">
+</head>
+<body>
+  <main class="shell">
+    <section id="login" class="card">
+      <p class="eyebrow">Админка</p>
+      <h1>Вход</h1>
+      <p class="muted">Регистрации нет. Один администраторский аккаунт.</p>
+      <form id="login-form">
+        <label>Почта<input type="email" name="email" autocomplete="username" required value="admin@admin.ru"></label>
+        <label>Пароль<input type="password" name="password" autocomplete="current-password" required value="test_test"></label>
+        <p id="login-error" class="error" hidden></p>
+        <button type="submit">Войти</button>
+      </form>
+    </section>
+
+    <section id="panel" hidden>
+      <header class="top">
+        <div>
+          <p class="eyebrow">Админка</p>
+          <h1>Модели</h1>
+        </div>
+        <button id="logout" type="button" class="ghost">Выйти</button>
+      </header>
+
+      <form id="upload" class="card">
+        <h2>Новая модель</h2>
+        <label>Название<input name="name" required maxlength="120" placeholder="Например, ClashBot v03"></label>
+        <label>Описание<textarea name="description" rows="2" placeholder="Что умеет эта модель"></textarea></label>
+        <label>Примечание<textarea name="note" rows="2" placeholder="Для себя: откуда файл, что проверить"></textarea></label>
+        <label class="file">Файл модели .onnx<input type="file" name="file" required accept=".onnx"></label>
+        <label class="file">Классы .labels.json<input type="file" name="labels_file" accept=".json"></label>
+        <p class="muted small">Оба файла готовит <code>scripts/export_onnx.py</code>. Без списка классов телефон покажет номера вместо названий карт.</p>
+        <label class="check"><input type="checkbox" name="is_active" checked> Сразу активна</label>
+        <p id="upload-error" class="error" hidden></p>
+        <button type="submit">Загрузить</button>
+      </form>
+
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+  <script src="/static/panel/app.js"></script>
+</body>
+</html>
