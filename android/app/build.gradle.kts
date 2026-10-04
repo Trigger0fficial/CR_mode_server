@@ -11,8 +11,10 @@ android {
         applicationId = "ru.crmod.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2"
+        // Адрес бэка зашит в приложение. Пользователь его не вводит и не видит.
+        buildConfigField("String", "SERVER", "\"http://147.45.185.70:3654\"")
     }
 
     buildTypes {
@@ -34,6 +36,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 
     // Библиотеки ONNX Runtime весят много, поэтому отдельный apk под каждый процессор:
@@ -51,6 +54,8 @@ android {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.19.2")
 }

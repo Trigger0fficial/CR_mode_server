@@ -122,4 +122,13 @@ button.warn { color: var(--warn); }
 .badge.on { background: #143524; color: var(--accent); }
 .badge.off { background: #2a2418; color: var(--warn); }
 
+.actions { display: grid; gap: 8px; align-content: center; }
+
+.state { margin-top: 8px; font-size: 13px; }
+.state.pending { color: var(--warn); }
+.state.ready { color: var(--accent); }
+.state.failed { color: var(--danger); }
+.err { margin-top: 4px; font-size: 13px; }
+.meta { margin-top: 8px; font-size: 13px; }
+
 .empty { color: var(--muted); padding: 8px 2px; }

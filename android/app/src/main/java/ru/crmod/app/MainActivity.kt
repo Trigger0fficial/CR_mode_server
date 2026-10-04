@@ -1,6 +1,7 @@
 package ru.crmod.app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -9,6 +10,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.MotionEvent
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -20,37 +23,61 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: ModelsAdapter
     private val clock = Handler(Looper.getMainLooper())
+    private var shown: Screen? = null
+    private var iconColor = 0
+
+    /** Три состояния экрана: всё выключено, плашка висит, идёт бой. */
+    private enum class Screen { OFF, READY, BATTLE }
+
     private val tick = object : Runnable {
         override fun run() {
-            renderPower()
+            render()
             clock.postDelayed(this, 500)
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        adapter = ModelsAdapter { item -> onModel(item) }
-        adapter.context = this
+
+        iconColor = getColor(R.color.muted)
+        adapter = ModelsAdapter(this) { item -> onModel(item) }
         adapter.selectedId = Prefs.selectedId(this)
         binding.models.layoutManager = LinearLayoutManager(this)
         binding.models.adapter = adapter
+        binding.models.itemAnimator?.apply {
+            changeDuration = Motion.NORMAL
+            moveDuration = Motion.NORMAL
+        }
+
         binding.power.setOnClickListener { toggle() }
-        binding.server.setText(Prefs.server(this))
-        binding.serverSave.setOnClickListener {
-            Prefs.saveServer(this, binding.server.text.toString())
-            binding.server.setText(Prefs.server(this))
+        binding.power.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> Motion.press(view, true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> Motion.press(view, false)
+            }
+            false
+        }
+        binding.reload.setOnClickListener {
+            binding.reload.animate()
+                .rotationBy(360f)
+                .setDuration(Motion.SLOW)
+                .setInterpolator(Motion.ease)
+                .start()
             load()
         }
+
         askNotifications()
+        render()
         load()
     }
 
     override fun onResume() {
         super.onResume()
         clock.post(tick)
-        adapter.notifyDataSetChanged()
+        adapter.refreshAll()
     }
 
     override fun onPause() {
@@ -67,67 +94,81 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun load() {
-        val client = ApiClient(Prefs.server(this))
-        binding.status.text = "Загружаю список моделей…"
+        val client = ApiClient()
+        say("Загружаю список моделей…")
         thread {
             try {
                 val items = client.models()
                 runOnUiThread {
                     adapter.selectedId = Prefs.selectedId(this)
                     adapter.submit(items)
-                    renderStatus(items)
+                    say(
+                        when {
+                            items.isEmpty() -> "На сервере нет готовых моделей"
+                            items.any { ModelStore.isReady(this, it.id) } -> ""
+                            else -> "Нажмите на модель, чтобы скачать её на телефон"
+                        }
+                    )
                 }
             } catch (error: Exception) {
-                runOnUiThread {
-                    binding.status.text = "Нет связи с сервером"
-                    Toast.makeText(this, error.message ?: "Нет связи с сервером", Toast.LENGTH_LONG).show()
-                }
+                runOnUiThread { say(error.message ?: "Нет связи с сервером") }
             }
         }
     }
 
-    private fun renderStatus(items: List<ModelItem>) {
-        val selected = items.firstOrNull { it.id == Prefs.selectedId(this) }
-        binding.status.text = when {
-            selected != null && ModelStore.isReady(this, selected.id) -> "Включена: ${selected.name}"
-            items.isEmpty() -> "На сервере нет активных моделей"
-            else -> "Модель не включена"
-        }
+    private fun say(text: String) {
+        Motion.retext(binding.status, text)
+        binding.status.visibility = if (text.isBlank()) View.GONE else View.VISIBLE
     }
 
     private fun onModel(item: ModelItem) {
-        if (!item.filename.endsWith(".onnx", ignoreCase = true)) {
-            Toast.makeText(this, "Телефон запускает только .onnx", Toast.LENGTH_LONG).show()
-            return
-        }
+        if (adapter.busyId >= 0) return
         if (!ModelStore.isReady(this, item.id)) {
             download(item)
             return
         }
+        if (Prefs.selectedId(this) == item.id && Battle.active) {
+            // Иконка «стоп» у работающей модели останавливает распознавание.
+            stopService(Intent(this, CaptureService::class.java))
+            return
+        }
+        val before = adapter.selectedId
         Prefs.select(this, item.id)
         adapter.selectedId = item.id
-        adapter.notifyDataSetChanged()
-        binding.status.text = "Включена: ${item.name}"
+        adapter.refresh(item.id)
+        if (before != item.id) adapter.refresh(before)
+        say("")
     }
 
     private fun download(item: ModelItem) {
         adapter.busyId = item.id
-        adapter.notifyDataSetChanged()
-        val client = ApiClient(Prefs.server(this))
+        adapter.progress = 0
+        adapter.refresh(item.id)
+        val client = ApiClient()
         thread {
             try {
-                client.download(item.id, ModelStore.modelFile(this, item.id))
+                client.download(item.id, ModelStore.modelFile(this, item.id)) { percent ->
+                    runOnUiThread {
+                        adapter.progress = percent
+                        adapter.refresh(item.id)
+                    }
+                }
                 ModelStore.saveLabels(this, item.id, item.labels)
                 runOnUiThread {
                     adapter.busyId = -1
-                    adapter.notifyDataSetChanged()
-                    Toast.makeText(this, "Скачано: ${item.name}", Toast.LENGTH_SHORT).show()
+                    // Скачанную модель сразу включаем: отдельное нажатие не нужно.
+                    val before = adapter.selectedId
+                    Prefs.select(this, item.id)
+                    adapter.selectedId = item.id
+                    adapter.refresh(item.id)
+                    if (before != item.id) adapter.refresh(before)
+                    say("")
                 }
             } catch (error: Exception) {
                 ModelStore.remove(this, item.id)
                 runOnUiThread {
                     adapter.busyId = -1
-                    adapter.notifyDataSetChanged()
+                    adapter.refresh(item.id)
                     Toast.makeText(this, error.message ?: "Скачивание не удалось", Toast.LENGTH_LONG).show()
                 }
             }
@@ -137,7 +178,7 @@ class MainActivity : AppCompatActivity() {
     private fun toggle() {
         if (OverlayService.running) {
             stopService(Intent(this, OverlayService::class.java))
-            renderPower()
+            render()
             return
         }
         if (ModelStore.selected(this) == null) {
@@ -146,30 +187,56 @@ class MainActivity : AppCompatActivity() {
         }
         if (!Settings.canDrawOverlays(this)) {
             startActivity(
-                Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:$packageName"),
-                )
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
             )
             Toast.makeText(this, "Разрешите показ поверх других окон", Toast.LENGTH_LONG).show()
             return
         }
         startForegroundService(Intent(this, OverlayService::class.java))
-        renderPower()
+        render()
     }
 
-    private fun renderPower() {
-        val running = OverlayService.running
-        binding.power.setBackgroundResource(if (running) R.drawable.bg_round_on else R.drawable.bg_round)
-        binding.powerIcon.setImageResource(if (running) R.drawable.ic_stop else R.drawable.ic_play)
-        binding.timer.setTextColor(if (running) getColor(R.color.accent) else getColor(R.color.ink))
-        binding.hint.text = when {
-            !running -> "Нажмите, чтобы показать плашку поверх игры"
-            Battle.active -> "Бой идёт, карты распознаются"
-            else -> "Откройте бой и нажмите «В бой» на плашке"
+    private fun render() {
+        val screen = when {
+            !OverlayService.running -> Screen.OFF
+            Battle.active -> Screen.BATTLE
+            else -> Screen.READY
         }
-        if (!running || OverlayService.startedAt == 0L) {
-            if (!running) binding.timer.text = "00:00"
+        renderTimer(screen)
+        if (screen == shown) return
+        shown = screen
+
+        binding.rings.setActive(screen != Screen.OFF)
+        val accent = getColor(if (screen == Screen.OFF) R.color.muted else R.color.accent)
+        Motion.recolor(binding.powerIcon, iconColor, accent)
+        iconColor = accent
+        Motion.retext(
+            binding.state,
+            getString(
+                when (screen) {
+                    Screen.OFF -> R.string.state_off
+                    Screen.READY -> R.string.state_ready
+                    Screen.BATTLE -> R.string.state_battle
+                }
+            )
+        )
+        binding.state.setTextColor(accent)
+        Motion.retext(
+            binding.hint,
+            getString(
+                when (screen) {
+                    Screen.OFF -> R.string.hint_off
+                    Screen.READY -> R.string.hint_ready
+                    Screen.BATTLE -> R.string.hint_battle
+                }
+            )
+        )
+        adapter.refreshAll()
+    }
+
+    private fun renderTimer(screen: Screen) {
+        if (screen == Screen.OFF || OverlayService.startedAt == 0L) {
+            binding.timer.text = getString(R.string.zero_time)
             return
         }
         val seconds = ((System.currentTimeMillis() - OverlayService.startedAt) / 1000).toInt()

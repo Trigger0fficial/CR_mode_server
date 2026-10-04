@@ -51,6 +51,7 @@ class Command(BaseCommand):
             description=f"YOLOv8n на объединённом датасете, {count} карт. Работает на телефоне.",
             note="Стартовая модель из сидов.",
             labels=labels,
+            status=DetectorModel.READY,
             is_active=True,
         )
         with source.open("rb") as handle:

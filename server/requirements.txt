@@ -4,3 +4,9 @@ django-cors-headers>=4.4,<5
 psycopg[binary]>=3.2,<4
 whitenoise>=6.7,<7
 gunicorn>=23,<24
+
+# Нужны конвертеру .pt -> .onnx. Тянут за собой torch, но он поднимается только
+# в отдельном коротком процессе, а не в воркерах gunicorn.
+ultralytics>=8.3,<9
+onnx>=1.17
+onnxslim>=0.1.48

@@ -4,6 +4,8 @@ const loginBox = document.querySelector("#login");
 const panel = document.querySelector("#panel");
 const list = document.querySelector("#list");
 
+let poll = 0;
+
 function token() {
   return localStorage.getItem(tokenKey);
 }
@@ -28,40 +30,87 @@ function showPanel(on) {
   panel.hidden = !on;
 }
 
+const stateText = {
+  pending: "сервер готовит файл для телефона…",
+  ready: "готова к работе",
+  failed: "конвертация не удалась",
+};
+
 function modelCard(item) {
   const node = document.createElement("article");
   node.className = "model";
-  const sizeMb = (item.size / 1024 / 1024).toFixed(1);
   node.innerHTML = `
     <div>
       <h3></h3>
       <p class="desc"></p>
       <p class="note"></p>
+      <p class="state"></p>
+      <p class="err error"></p>
       <span class="badge"></span>
       <p class="meta"></p>
     </div>
-    <button type="button"></button>
+    <div class="actions"></div>
   `;
   node.querySelector("h3").textContent = item.name;
   node.querySelector(".desc").textContent = item.description || "Без описания";
   node.querySelector(".note").textContent = item.note ? "Примечание: " + item.note : "";
+
+  const state = node.querySelector(".state");
+  state.textContent = stateText[item.status] || item.status;
+  state.className = "state " + item.status;
+
+  const err = node.querySelector(".err");
+  err.textContent = item.error || "";
+  err.hidden = !item.error;
+
   const badge = node.querySelector(".badge");
   badge.textContent = item.is_active ? "активна" : "выключена";
   badge.classList.add(item.is_active ? "on" : "off");
-  const classes = item.labels.length ? item.labels.length + " карт" : "классы не заданы";
-  node.querySelector(".meta").textContent = item.filename + " · " + sizeMb + " МБ · " + classes;
-  const button = node.querySelector("button");
-  button.className = item.is_active ? "warn" : "";
-  button.textContent = item.is_active ? "Выключить" : "Сделать активной";
+
+  const parts = [];
+  if (item.filename) parts.push(item.filename);
+  if (item.size) parts.push((item.size / 1024 / 1024).toFixed(1) + " МБ");
+  if (item.labels.length) parts.push(item.labels.length + " карт");
+  if (item.source_filename) parts.push("загружено: " + item.source_filename);
+  node.querySelector(".meta").textContent = parts.join(" · ");
+
+  const actions = node.querySelector(".actions");
+  if (item.status === "failed") {
+    actions.append(action("Конвертировать снова", "", async () => {
+      await api("/api/models/" + item.id + "/convert/", { method: "POST" });
+      await load();
+    }));
+  }
+  if (item.status === "ready") {
+    actions.append(action(
+      item.is_active ? "Выключить" : "Сделать активной",
+      item.is_active ? "warn" : "",
+      async () => {
+        await api("/api/models/" + item.id + "/", {
+          method: "PATCH",
+          json: { is_active: !item.is_active },
+        });
+        await load();
+      },
+    ));
+  }
+  return node;
+}
+
+function action(label, className, run) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = label;
+  if (className) button.className = className;
   button.addEventListener("click", async () => {
     button.disabled = true;
-    await api("/api/models/" + item.id + "/", {
-      method: "PATCH",
-      json: { is_active: !item.is_active },
-    });
-    await load();
+    try {
+      await run();
+    } finally {
+      button.disabled = false;
+    }
   });
-  return node;
+  return button;
 }
 
 async function load() {
@@ -72,9 +121,14 @@ async function load() {
     empty.className = "empty";
     empty.textContent = "Моделей пока нет.";
     list.append(empty);
-    return;
+  } else {
+    items.forEach((item) => list.append(modelCard(item)));
   }
-  items.forEach((item) => list.append(modelCard(item)));
+  // Пока хоть одна модель конвертируется, обновляем список сами.
+  clearTimeout(poll);
+  if (items.some((item) => item.status === "pending")) {
+    poll = setTimeout(() => load().catch(() => {}), 3000);
+  }
 }
 
 document.querySelector("#login-form").addEventListener("submit", async (event) => {
@@ -98,6 +152,7 @@ document.querySelector("#login-form").addEventListener("submit", async (event) =
 
 document.querySelector("#logout").addEventListener("click", () => {
   localStorage.removeItem(tokenKey);
+  clearTimeout(poll);
   showPanel(false);
 });
 
@@ -106,10 +161,11 @@ document.querySelector("#upload").addEventListener("submit", async (event) => {
   const error = document.querySelector("#upload-error");
   error.hidden = true;
   const form = event.target;
+  const submit = form.querySelector("button[type=submit]");
   const body = new FormData(form);
   if (!body.get("is_active")) body.set("is_active", "false");
-  const labels = body.get("labels_file");
-  if (!labels || !labels.size) body.delete("labels_file");
+  submit.disabled = true;
+  submit.textContent = "Загружаю…";
   try {
     await api("/api/models/", { method: "POST", body });
     form.reset();
@@ -118,6 +174,9 @@ document.querySelector("#upload").addEventListener("submit", async (event) => {
   } catch (err) {
     error.textContent = err.message;
     error.hidden = false;
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "Загрузить";
   }
 });
 

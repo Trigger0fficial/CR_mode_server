@@ -34,9 +34,8 @@
         <label>Название<input name="name" required maxlength="120" placeholder="Например, ClashBot v03"></label>
         <label>Описание<textarea name="description" rows="2" placeholder="Что умеет эта модель"></textarea></label>
         <label>Примечание<textarea name="note" rows="2" placeholder="Для себя: откуда файл, что проверить"></textarea></label>
-        <label class="file">Файл модели .onnx<input type="file" name="file" required accept=".onnx"></label>
-        <label class="file">Классы .labels.json<input type="file" name="labels_file" accept=".json"></label>
-        <p class="muted small">Оба файла готовит <code>scripts/export_onnx.py</code>. Без списка классов телефон покажет номера вместо названий карт.</p>
+        <label class="file">Файл весов<input type="file" name="file" required accept=".pt,.pth,.onnx"></label>
+        <p class="muted small">Можно грузить <code>.pt</code> прямо из обучения — сервер сам переведёт его в <code>.onnx</code> и вытащит названия карт. Готовый <code>.onnx</code> тоже принимается.</p>
         <label class="check"><input type="checkbox" name="is_active" checked> Сразу активна</label>
         <p id="upload-error" class="error" hidden></p>
         <button type="submit">Загрузить</button>

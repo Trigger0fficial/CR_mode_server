@@ -37,6 +37,9 @@ class CaptureService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(2, note(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        // Повторный запуск не должен оставить второй поток на той же модели:
+        // две сессии ONNX на одних буферах дают битые кадры.
+        release()
         val code = intent?.getIntExtra(EXTRA_CODE, 0) ?: 0
         val data = intent?.getParcelableExtra(EXTRA_DATA, Intent::class.java)
         if (code == 0 || data == null) {
@@ -130,16 +133,29 @@ class CaptureService : Service() {
     }
 
     override fun onDestroy() {
+        release()
+        Battle.stopped()
+        super.onDestroy()
+    }
+
+    private fun release() {
         display?.release()
         reader?.close()
         projection?.stop()
-        detector?.close()
-        detector = null
+        // Поток гасим раньше детектора, иначе он может войти в закрытую сессию.
         worker?.quitSafely()
+        worker?.join(300)
+        detector?.close()
         frame?.recycle()
+        display = null
+        reader = null
+        projection = null
+        worker = null
+        detector = null
         frame = null
-        Battle.stopped()
-        super.onDestroy()
+        busy = false
+        frames = 0
+        spent = 0L
     }
 
     private fun note(): Notification {

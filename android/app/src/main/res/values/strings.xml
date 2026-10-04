@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">CR</string>
+    <string name="models">Модели</string>
+    <string name="reload">Обновить список</string>
+    <string name="power">Запустить</string>
+    <string name="zero_time">00:00</string>
+    <string name="state_off">ВЫКЛЮЧЕНО</string>
+    <string name="state_ready">ГОТОВ К БОЮ</string>
+    <string name="state_battle">БОЙ ИДЁТ</string>
+    <string name="hint_off">Выберите модель и нажмите кнопку — сверху появится плашка, она держится поверх игры</string>
+    <string name="hint_ready">Зайдите в бой и нажмите «В бой» на плашке</string>
+    <string name="hint_battle">Карты распознаются на телефоне</string>
+    <string name="battle_start">В бой</string>
+    <string name="battle_stop">Бой закончен</string>
 </resources>

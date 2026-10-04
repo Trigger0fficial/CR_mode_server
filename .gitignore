@@ -7,6 +7,9 @@ staticfiles/
 
 # Файлы, загруженные через админку. Стартовая модель лежит в server/media/seed.
 server/media/models/
+server/media/sources/
+server/_run.log
+server/_run.err
 
 # Android
 build/

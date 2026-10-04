@@ -12,15 +12,18 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import ru.crmod.app.databinding.ChipBattleBinding
 
 class OverlayService : Service() {
     private val main = Handler(Looper.getMainLooper())
-    private var chip: TextView? = null
+    private var chip: ChipBattleBinding? = null
     private var layer: DetectionView? = null
+    private var painted: Boolean? = null
 
     private val windows get() = getSystemService(WINDOW_SERVICE) as WindowManager
 
@@ -31,6 +34,7 @@ class OverlayService : Service() {
         startForeground(1, note("Помощник запущен"), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         startedAt = System.currentTimeMillis()
         running = true
+        addLayer()
         addChip()
         Battle.onState = { active -> main.post { renderChip(active) } }
         Battle.onBoxes = { boxes, width, height -> layer?.show(boxes, width, height) }
@@ -40,13 +44,17 @@ class OverlayService : Service() {
         Battle.onState = null
         Battle.onBoxes = null
         stopService(Intent(this, CaptureService::class.java))
-        chip?.let { runCatching { windows.removeView(it) } }
-        layer?.let { runCatching { windows.removeView(it) } }
+        chip?.root?.let { view -> Motion.disappear(view) { drop(view) } }
         chip = null
+        layer?.let { drop(it) }
         layer = null
         running = false
         startedAt = 0L
         super.onDestroy()
+    }
+
+    private fun drop(view: View) {
+        runCatching { windows.removeView(view) }
     }
 
     private fun onChipClick() {
@@ -61,10 +69,14 @@ class OverlayService : Service() {
     }
 
     private fun addChip() {
-        val view = TextView(this).apply {
-            textSize = 16f
-            setPadding(36, 18, 36, 18)
-            setOnClickListener { onChipClick() }
+        val binding = ChipBattleBinding.inflate(LayoutInflater.from(this))
+        binding.root.setOnClickListener { onChipClick() }
+        binding.root.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> Motion.press(view, true)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> Motion.press(view, false)
+            }
+            false
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -75,24 +87,32 @@ class OverlayService : Service() {
         )
         params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
         params.y = 48
-        windows.addView(view, params)
-        chip = view
-        renderChip(Battle.active)
+        params.windowAnimations = 0
+        windows.addView(binding.root, params)
+        chip = binding
+        paint(Battle.active)
+        Motion.appear(binding.root)
     }
 
     private fun renderChip(active: Boolean) {
-        chip?.apply {
-            text = if (active) "Бой закончен" else "В бой"
-            setTextColor(if (active) 0xFFFF6B6B.toInt() else 0xFF3DDC84.toInt())
-            setBackgroundResource(R.drawable.bg_chip)
-        }
-        if (active) addLayer() else removeLayer()
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(1, note(if (active) "Бой идёт, карты распознаются" else "Готов к бою"))
+        val binding = chip ?: return
+        if (painted != active) Motion.swap(binding.root) { paint(active) }
+        if (active) layer?.start() else layer?.stop()
+        getSystemService(NotificationManager::class.java)
+            .notify(1, note(if (active) "Бой идёт, карты распознаются" else "Готов к бою"))
+    }
+
+    private fun paint(active: Boolean) {
+        val binding = chip ?: return
+        painted = active
+        val color = getColor(if (active) R.color.danger else R.color.accent)
+        binding.label.setText(if (active) R.string.battle_stop else R.string.battle_start)
+        binding.label.setTextColor(color)
+        binding.icon.setImageResource(if (active) R.drawable.ic_stop else R.drawable.ic_bolt)
+        binding.icon.setColorFilter(color)
     }
 
     private fun addLayer() {
-        if (layer != null) return
         val view = DetectionView(this)
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -105,29 +125,9 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         )
         params.gravity = Gravity.TOP or Gravity.START
+        params.windowAnimations = 0
         windows.addView(view, params)
-        // Слой не должен перехватывать плашку, поэтому возвращаем её наверх.
-        chip?.let { windows.removeView(it) }
-        chip?.let { addChipBack(it) }
         layer = view
-    }
-
-    private fun addChipBack(view: View) {
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT,
-        )
-        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-        params.y = 48
-        windows.addView(view, params)
-    }
-
-    private fun removeLayer() {
-        layer?.let { runCatching { windows.removeView(it) } }
-        layer = null
     }
 
     private fun note(text: String): Notification {
@@ -139,7 +139,7 @@ class OverlayService : Service() {
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, "overlay")
-            .setSmallIcon(R.drawable.ic_play)
+            .setSmallIcon(R.drawable.ic_bolt)
             .setContentTitle("CR")
             .setContentText(text)
             .setContentIntent(open)

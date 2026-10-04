@@ -8,6 +8,7 @@ from .models import DetectorModel
 class DetectorModelSerializer(serializers.ModelSerializer):
     size = serializers.SerializerMethodField()
     filename = serializers.SerializerMethodField()
+    source_filename = serializers.SerializerMethodField()
     labels = serializers.SerializerMethodField()
 
     class Meta:
@@ -18,13 +19,26 @@ class DetectorModelSerializer(serializers.ModelSerializer):
             "description",
             "note",
             "is_active",
+            "status",
+            "error",
             "size",
             "filename",
+            "source_filename",
             "labels",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "size", "filename", "labels", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "status",
+            "error",
+            "size",
+            "filename",
+            "source_filename",
+            "labels",
+            "created_at",
+            "updated_at",
+        ]
 
     def get_size(self, obj):
         try:
@@ -33,8 +47,10 @@ class DetectorModelSerializer(serializers.ModelSerializer):
             return 0
 
     def get_filename(self, obj):
-        name = obj.file.name or ""
-        return name.rsplit("/", 1)[-1]
+        return (obj.file.name or "").rsplit("/", 1)[-1]
+
+    def get_source_filename(self, obj):
+        return (obj.source_file.name or "").rsplit("/", 1)[-1]
 
     def get_labels(self, obj):
         raw = (obj.labels or "").strip()
